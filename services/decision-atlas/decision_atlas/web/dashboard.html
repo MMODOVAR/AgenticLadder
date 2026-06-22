@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Decision Atlas</title>
+<style>
+  :root {
+    --bg: #0b1120; --panel: #131c31; --panel2: #1b2740; --line: #2a3a5c;
+    --text: #e6edf7; --muted: #8da2c4; --accent: #2563eb; --green: #16a34a;
+    --amber: #d97706; --red: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, Helvetica, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--line);
+           display: flex; align-items: center; gap: 16px; background: var(--panel); }
+  header h1 { font-size: 18px; margin: 0; }
+  header .tag { color: var(--muted); font-size: 13px; }
+  button { background: var(--accent); color: white; border: 0; padding: 8px 14px;
+           border-radius: 6px; cursor: pointer; font-size: 13px; }
+  button.ghost { background: var(--panel2); border: 1px solid var(--line); }
+  button:hover { filter: brightness(1.1); }
+  .layout { display: grid; grid-template-columns: 240px 1fr 380px; height: calc(100vh - 65px); }
+  .col { overflow-y: auto; padding: 16px; }
+  .col.domains { border-right: 1px solid var(--line); background: var(--panel); }
+  .col.detail { border-left: 1px solid var(--line); background: var(--panel); }
+  .domain { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; }
+  .domain:hover, .domain.active { background: var(--panel2); }
+  .domain .count { color: var(--muted); font-size: 12px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+          padding: 14px; margin-bottom: 12px; cursor: pointer; }
+  .card:hover { border-color: var(--accent); }
+  .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .card h3 { margin: 0 0 4px; font-size: 15px; }
+  .card .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .rung { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 12px;
+          font-weight: 600; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px;
+          background: var(--panel); border:1px solid var(--line); color: var(--muted);}
+  .status-discovered { color: var(--muted); }
+  .status-annotated { color: var(--amber); }
+  .status-approved { color: var(--green); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea, select { width: 100%; background: var(--bg); border: 1px solid var(--line);
+          color: var(--text); border-radius: 6px; padding: 8px; font-size: 13px; }
+  .sig { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+  .sig .name { width: 130px; color: var(--muted); }
+  .sig input[type=range] { flex: 1; }
+  .sig .val { width: 34px; text-align: right; }
+  .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .bar > span { display:block; height:100%; background: var(--accent); }
+  .rationale { font-size: 12px; color: var(--muted); white-space: pre-wrap;
+               line-height: 1.5; background: var(--bg); border-radius:6px; padding:10px;
+               border:1px solid var(--line); max-height: 220px; overflow:auto;}
+  .row { display:flex; gap:8px; align-items:center; }
+  .empty { color: var(--muted); text-align:center; margin-top: 40px; font-size: 14px; }
+  .toolbar { display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 12px; }
+  a { color: #7aa2ff; }
+  .prov { font-size:10px; text-transform: uppercase; opacity:.7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🗺️ Decision Atlas</h1>
+  <span class="tag">the map you point your agents at</span>
+  <div style="flex:1"></div>
+  <span id="stats" class="tag"></span>
+  <button onclick="runDiscovery()">⟳ Run discovery</button>
+</header>
+
+<div class="layout">
+  <div class="col domains" id="domains"><div class="empty">Run discovery to begin.</div></div>
+  <div class="col" id="decisions"><div class="empty">No domain selected.</div></div>
+  <div class="col detail" id="detail"><div class="empty">Select a decision to annotate.</div></div>
+</div>
+
+<script>
+const RUNG_COLORS = ["#64748b","#0891b2","#2563eb","#7c3aed","#d97706","#16a34a"];
+let state = { domain: null, decisionId: null, decisions: [], ladder: [] };
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({ headers: {"Content-Type":"application/json"} }, opts));
+  if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+  return res.json();
+}
+
+async function runDiscovery() {
+  setStats("discovering…");
+  try {
+    await api("/api/discover", { method: "POST", body: JSON.stringify({}) });
+    await loadLadder();
+    await loadDomains();
+  } catch (e) { alert("Discovery failed: " + e.message); }
+}
+
+async function loadLadder() {
+  const d = await api("/api/ladder");
+  state.ladder = d.rungs;
+}
+
+async function loadDomains() {
+  const [{domains}, sum] = await Promise.all([api("/api/domains"), api("/api/summary")]);
+  setStats(`${sum.decision_count} decisions · ${sum.domain_count} domains · ${sum.approved} approved`);
+  const el = document.getElementById("domains");
+  el.innerHTML = "";
+  if (!domains.length) { el.innerHTML = '<div class="empty">No decisions found.</div>'; return; }
+  domains.forEach(d => {
+    const div = document.createElement("div");
+    div.className = "domain" + (d.name === state.domain ? " active" : "");
+    div.innerHTML = `<div>${d.name}</div><div class="count">${d.decision_count} decisions</div>`;
+    div.onclick = () => selectDomain(d.name);
+    el.appendChild(div);
+  });
+  if (!state.domain && domains.length) selectDomain(domains[0].name);
+}
+
+async function selectDomain(name) {
+  state.domain = name;
+  const dom = await api(`/api/domains/${encodeURIComponent(name)}/decisions`);
+  state.decisions = dom.decisions;
+  document.querySelectorAll(".domain").forEach(n =>
+    n.classList.toggle("active", n.textContent.startsWith(name)));
+  renderDecisions();
+}
+
+function rungBadge(rec) {
+  if (!rec) return "";
+  const c = RUNG_COLORS[rec.recommended_rung] || "#888";
+  return `<span class="rung" style="background:${c}">Rung ${rec.recommended_rung}: ${rec.rung_name}</span>`;
+}
+
+function renderDecisions() {
+  const el = document.getElementById("decisions");
+  el.innerHTML = `<div class="toolbar">
+      <strong>${state.domain}</strong>
+      <span class="pill">${state.decisions.length} decisions</span>
+      <button class="ghost" onclick="exportGraph('mermaid')">Export graph (Mermaid)</button>
+      <button class="ghost" onclick="exportGraph('dot')">DOT</button>
+      <button class="ghost" onclick="exportGraph('graphml')">GraphML</button>
+      <button class="ghost" onclick="exportGraph('json')">JSON</button>
+    </div>`;
+  state.decisions.forEach(d => {
+    const div = document.createElement("div");
+    div.className = "card" + (d.id === state.decisionId ? " active" : "");
+    div.innerHTML = `
+      <h3>${d.name}</h3>
+      <div class="meta">${d.key} · ${d.event_count} events ·
+        <span class="status-${d.status}">${d.status}</span></div>
+      <div class="row" style="justify-content:space-between">
+        ${rungBadge(d.recommendation)}
+        <span class="pill">conf ${(d.recommendation?.confidence ?? 0).toFixed(2)}</span>
+      </div>`;
+    div.onclick = () => selectDecision(d.id);
+    el.appendChild(div);
+  });
+}
+
+function selectDecision(id) {
+  state.decisionId = id;
+  renderDecisions();
+  renderDetail(state.decisions.find(d => d.id === id));
+}
+
+function sigRow(key, sig) {
+  const v = sig.value;
+  return `<div class="sig">
+      <span class="name">${key.replace(/_/g,' ')}<br><span class="prov">${sig.provenance}</span></span>
+      <input type="range" min="0" max="1" step="0.05" value="${v}"
+             oninput="this.nextElementSibling.textContent=(+this.value).toFixed(2)"
+             data-sig="${key}">
+      <span class="val">${v.toFixed(2)}</span>
+    </div>`;
+}
+
+function renderDetail(d) {
+  const el = document.getElementById("detail");
+  if (!d) { el.innerHTML = '<div class="empty">Select a decision.</div>'; return; }
+  const rec = d.recommendation || {};
+  el.innerHTML = `
+    <h2 style="margin-top:0">${d.name}</h2>
+    <div class="meta" style="color:var(--muted);font-size:12px">${d.key}</div>
+    <div style="margin:10px 0">${rungBadge(rec)}
+      <span class="pill">base ${rec.base_rung} · ceiling ${rec.ceiling_rung}</span></div>
+    <div class="bar"><span style="width:${(rec.readiness_score*100).toFixed(0)}%"></span></div>
+    <div class="meta" style="font-size:11px;color:var(--muted)">readiness ${(rec.readiness_score??0).toFixed(2)} · limiting factor: ${rec.limiting_factor||"-"}</div>
+
+    <label>Owner</label><input id="f-owner" value="${d.owner||''}">
+    <label>Owner role</label><input id="f-role" value="${d.owner_role||''}">
+    <label>What "correct" looks like (criteria)</label>
+    <textarea id="f-criteria" rows="3" placeholder="Define the success criteria…">${d.criteria||''}</textarea>
+    <label>Notes</label><textarea id="f-notes" rows="2">${d.annotation?.notes||''}</textarea>
+
+    <label>Data inputs (${d.input_data.length})</label>
+    <div>${d.input_data.map(i=>`<span class="pill">${i}</span>`).join(' ') || '<span class="meta">none detected</span>'}</div>
+
+    <label>Signals — drag to override</label>
+    ${Object.entries(d.signals).map(([k,s])=>sigRow(k,s)).join('')}
+
+    <label>Target rung override</label>
+    <select id="f-target">
+      <option value="">(use recommendation)</option>
+      ${state.ladder.map(r=>`<option value="${r.level}" ${d.annotation?.target_rung_override===r.level?'selected':''}>Rung ${r.level}: ${r.name}</option>`).join('')}
+    </select>
+
+    <div class="row" style="margin-top:14px">
+      <button onclick="saveAnnotation('${d.id}')">Save annotation</button>
+      <button class="ghost" onclick="approve('${d.id}')">Approve ✓</button>
+    </div>
+
+    <label>Why this rung</label>
+    <div class="rationale">${(rec.rationale||[]).join('\n')}</div>
+  `;
+}
+
+async function saveAnnotation(id) {
+  const overrides = {};
+  document.querySelectorAll('[data-sig]').forEach(s => overrides[s.dataset.sig] = +s.value);
+  const target = document.getElementById('f-target').value;
+  const body = {
+    owner: val('f-owner'), owner_role: val('f-role'),
+    criteria: val('f-criteria'), notes: val('f-notes'),
+    signal_overrides: overrides,
+    target_rung_override: target === '' ? null : +target,
+  };
+  await api(`/api/decisions/${id}/annotate`, { method:"POST", body: JSON.stringify(body) });
+  await selectDomain(state.domain); selectDecision(id);
+}
+
+async function approve(id) {
+  const who = prompt("Approve as (name):", "owner");
+  if (!who) return;
+  await api(`/api/decisions/${id}/approve`, { method:"POST", body: JSON.stringify({approved_by: who}) });
+  await selectDomain(state.domain); selectDecision(id);
+  await loadDomains();
+}
+
+async function exportGraph(fmt) {
+  const url = `/api/domains/${encodeURIComponent(state.domain)}/graph?format=${fmt}`;
+  if (fmt === 'json') { window.open(url, '_blank'); return; }
+  const res = await fetch(url); const text = await res.text();
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${state.domain}-decision-graph.${fmt === 'mermaid' ? 'mmd' : fmt}`;
+  a.click();
+}
+
+const val = id => document.getElementById(id).value;
+function setStats(s){ document.getElementById("stats").textContent = s; }
+
+// Auto-run on load for instant gratification with sample data.
+runDiscovery();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "name": "ACME Corp — Decision Atlas demo",
+  "sources": [
+    {
+      "type": "jira",
+      "name": "jira-prod",
+      "path": "jira_tickets.json"
+    },
+    {
+      "type": "approval",
+      "name": "servicenow-approvals",
+      "path": "approvals.json"
+    },
+    {
+      "type": "audit_log",
+      "name": "cloud-audit",
+      "path": "audit_log.jsonl",
+      "mapping": {
+        "id": "id",
+        "decision_key": "decision",
+        "timestamp": "timestamp",
+        "actor": "actor",
+        "role": "role",
+        "action": "action",
+        "outcome": "outcome",
+        "domain": "domain",
+        "input_fields": "inputs",
+        "reversible": "reversible",
+        "overturned": "overturned",
+        "impact": "impact"
+      }
+    },
+    {
+      "type": "workflow",
+      "name": "temporal-workflows",
+      "path": "workflow_runs.json"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-atlas"
+version = "0.1.0"
+description = "Discovery engine that auto-builds a live map of enterprise decisions and recommends a target autonomy rung. The first service of the AgenticLadder platform."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "AgenticLadder" }]
+keywords = ["agentic", "automation", "decision-intelligence", "enterprise-architecture"]
+
+# The core engine (discovery, rung recommendation, graph export) has NO runtime
+# dependencies — it is pure standard library. Extras add the API/dashboard.
+dependencies = []
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn>=0.27"]
+dev = ["fastapi>=0.110", "uvicorn>=0.27", "httpx>=0.27", "pytest>=8.0"]
+
+[project.scripts]
+decision-atlas = "decision_atlas.__main__:main"
+
+[tool.setuptools]
+packages = [
+  "decision_atlas",
+  "decision_atlas.connectors",
+  "decision_atlas.discovery",
+  "decision_atlas.rung",
+  "decision_atlas.graph",
+  "decision_atlas.api",
+]
+
+[tool.setuptools.package-data]
+decision_atlas = ["web/*.html", "sample_data/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,24 @@
+[
+  {
+    "workflow": "order_fulfillment", "domain": "Operations", "run_id": "of-1",
+    "tasks": [
+      {"type": "task", "name": "receive_order"},
+      {"type": "gateway", "name": "fraud_check", "decision": "pass", "completed_at": "2026-05-10T10:00:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"risk_score": 1, "amount": 1, "geo": 1}, "reversible": true, "overturned": false, "impact": 0.4},
+      {"type": "gateway", "name": "route_warehouse", "decision": "east", "completed_at": "2026-05-10T10:01:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"sku": 1, "destination": 1, "stock": 1}, "reversible": true, "overturned": false, "impact": 0.2}
+    ]
+  },
+  {
+    "workflow": "order_fulfillment", "domain": "Operations", "run_id": "of-2",
+    "tasks": [
+      {"type": "gateway", "name": "fraud_check", "decision": "pass", "completed_at": "2026-05-10T11:00:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"risk_score": 1, "amount": 1, "geo": 1}, "reversible": true, "overturned": false, "impact": 0.4},
+      {"type": "gateway", "name": "route_warehouse", "decision": "west", "completed_at": "2026-05-10T11:01:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"sku": 1, "destination": 1, "stock": 1}, "reversible": true, "overturned": false, "impact": 0.2}
+    ]
+  },
+  {
+    "workflow": "order_fulfillment", "domain": "Operations", "run_id": "of-3",
+    "tasks": [
+      {"type": "gateway", "name": "fraud_check", "decision": "review", "completed_at": "2026-05-10T12:00:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"risk_score": 1, "amount": 1, "geo": 1}, "reversible": true, "overturned": false, "impact": 0.4},
+      {"type": "gateway", "name": "route_warehouse", "decision": "east", "completed_at": "2026-05-10T12:01:00Z", "assignee": "rules-engine", "role": "Automated", "inputs": {"sku": 1, "destination": 1, "stock": 1}, "reversible": true, "overturned": false, "impact": 0.2}
+    ]
+  }
+]

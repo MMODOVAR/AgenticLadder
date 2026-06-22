@@ -1,0 +1,6 @@
+# Core engine: no dependencies (pure standard library).
+# These are only needed to run the REST API + dashboard:
+fastapi>=0.110
+uvicorn>=0.27
+# Only needed to run the API test suite:
+httpx>=0.27
