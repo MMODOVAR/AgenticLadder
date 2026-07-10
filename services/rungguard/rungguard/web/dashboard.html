@@ -64,9 +64,12 @@ input,textarea,select{width:100%;background:var(--bg);border:1px solid var(--lin
 .cred-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
 .ttl-bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:3px;}
 .ttl-bar>span{display:block;height:100%;background:var(--green);}
+#banner{display:none;background:#7c2d12;color:#fed7aa;padding:12px 24px;
+        font-size:13px;line-height:1.7;border-bottom:1px solid #9a3412;}
 </style>
 </head>
 <body>
+<div id="banner"></div>
 <header>
   <span style="font-size:20px">🛡️</span>
   <h1>RungGuard</h1>
@@ -102,18 +105,32 @@ const RUNG_COLORS=['#64748b','#0891b2','#2563eb','#7c3aed','#d97706','#16a34a'];
 const RUNG_NAMES=['Manual','Assisted','Recommended','Supervised','Conditional','Autonomous'];
 let state={view:'overview',agents:[],requests:[],audit:[],policies:[],selectedAgent:null};
 
+const API_BASE = window.location.protocol === "file:"
+  ? (localStorage.getItem("rungguard_api_base") || "http://localhost:8001")
+  : "";
+
 async function api(path,opts={}){
-  const r=await fetch(path,{headers:{'Content-Type':'application/json'},...opts});
+  const r=await fetch(API_BASE+path,{headers:{'Content-Type':'application/json'},...opts});
   if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.detail||r.statusText);}
   return r.json();
 }
 
 async function loadAll(){
-  const [sum,agents,reqs,aud,pols]=await Promise.all([
-    api('/api/summary'),api('/api/agents'),
-    api('/api/change-requests'),api('/api/audit?limit=200'),
-    api('/api/policies'),
-  ]);
+  hideBanner();
+  let sum,agents,reqs,aud,pols;
+  try {
+    [sum,agents,reqs,aud,pols]=await Promise.all([
+      api('/api/summary'),api('/api/agents'),
+      api('/api/change-requests'),api('/api/audit?limit=200'),
+      api('/api/policies'),
+    ]);
+  } catch(e) {
+    const msg=e.message||String(e);
+    if(msg.includes("fetch")||msg.includes("NetworkError")||msg.includes("Failed")){
+      showBanner(); return;
+    }
+    document.getElementById('hdr-stats').textContent="Error: "+msg; return;
+  }
   state.agents=agents.agents||[];
   state.requests=reqs.requests||[];
   state.audit=aud.entries||[];
@@ -350,7 +367,8 @@ async function selectAgent(id){
           <span style="font-weight:700">${c.credential_type}</span>
           <span class="pill" style="margin-left:4px">${c.provider}</span><br>
           <span class="meta">${c.secret_ref.substring(0,32)}&hellip;</span>
-          ${exp?`<div class="ttl-bar"><span style="width:${pct}%;background:${pct>50?'var(--green)':pct>20?'var(--amber)':'var(--red)'}"></span></div>
+          ${exp?`<div class="ttl-bar"><span style="width:${pct}%;background:${pct>50?'var(--green)':pct>20?'var(--amber)':'var(--red)'}">
+</span></div>
           <span class="meta">Expires in ${remaining?Math.round(remaining/60)+'m':'-'}</span>`:''}
         </div>
         <span class="pill" style="color:var(--green)">${c.status}</span>
@@ -460,6 +478,27 @@ async function checkAction(){
        Rung ${r.rung} &middot; ${r.action_category}<br>
        <span style="color:var(--muted)">${r.reason}</span>`;
   }catch(e){document.getElementById('check-result').textContent='Error: '+e.message;}
+}
+
+function showBanner(){
+  const base=API_BASE||window.location.origin;
+  document.getElementById('banner').innerHTML=`
+    <strong>Cannot reach the API server.</strong>
+    Start it first, then click <em>Refresh</em>.<br>
+    <code style="font-size:12px;background:#0b1120;padding:4px 8px;border-radius:4px;display:inline-block;margin:6px 0">
+      cd services/rungguard &amp;&amp; pip install -e ".[api]" &amp;&amp;
+      uvicorn rungguard.api.app:app --port 8001
+    </code><br>
+    Then open <a href="http://localhost:8001" target="_blank">http://localhost:8001</a>
+    ${window.location.protocol==="file:"?" or keep this file open — it will connect to <b>"+base+"</b>.": "."}
+    &nbsp;<button class="ghost" style="font-size:11px;padding:4px 8px"
+      onclick="promptApiBase()">Change API URL</button>`;
+  document.getElementById('banner').style.display='block';
+}
+function hideBanner(){document.getElementById('banner').style.display='none';}
+function promptApiBase(){
+  const v=prompt("API base URL (e.g. http://localhost:8001):",API_BASE);
+  if(v){localStorage.setItem("rungguard_api_base",v.replace(/\/$/,""));location.reload();}
 }
 
 function rungChip(r){

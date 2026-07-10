@@ -58,6 +58,8 @@
   .toolbar { display:flex; gap:8px; flex-wrap: wrap; margin-bottom: 12px; }
   a { color: #7aa2ff; }
   .prov { font-size:10px; text-transform: uppercase; opacity:.7; }
+  #banner { display:none; background:#7c2d12; color:#fed7aa; padding:12px 24px;
+            font-size:13px; line-height:1.7; border-bottom:1px solid #9a3412; }
 </style>
 </head>
 <body>
@@ -69,6 +71,7 @@
   <button onclick="runDiscovery()">⟳ Run discovery</button>
 </header>
 
+<div id="banner"></div>
 <div class="layout">
   <div class="col domains" id="domains"><div class="empty">Run discovery to begin.</div></div>
   <div class="col" id="decisions"><div class="empty">No domain selected.</div></div>
@@ -79,19 +82,58 @@
 const RUNG_COLORS = ["#64748b","#0891b2","#2563eb","#7c3aed","#d97706","#16a34a"];
 let state = { domain: null, decisionId: null, decisions: [], ladder: [] };
 
+// When opened as a local file the relative paths don't resolve to any server.
+// Detect that and point at localhost instead so the dashboard works either way.
+const API_BASE = window.location.protocol === "file:"
+  ? (localStorage.getItem("atlas_api_base") || "http://localhost:8002")
+  : "";
+
 async function api(path, opts) {
-  const res = await fetch(path, Object.assign({ headers: {"Content-Type":"application/json"} }, opts));
+  const res = await fetch(API_BASE + path,
+    Object.assign({ headers: {"Content-Type":"application/json"} }, opts));
   if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
   return res.json();
 }
 
 async function runDiscovery() {
   setStats("discovering…");
+  hideBanner();
   try {
     await api("/api/discover", { method: "POST", body: JSON.stringify({}) });
     await loadLadder();
     await loadDomains();
-  } catch (e) { alert("Discovery failed: " + e.message); }
+  } catch (e) {
+    const msg = e.message || String(e);
+    if (msg.includes("fetch") || msg.includes("NetworkError") || msg.includes("Failed")) {
+      showBanner();
+    } else {
+      setStats("Discovery error: " + msg);
+    }
+  }
+}
+
+function showBanner() {
+  const base = API_BASE || window.location.origin;
+  document.getElementById("banner").innerHTML = `
+    <strong>Cannot reach the API server.</strong>
+    Start it first, then click <em>Run discovery</em>.<br>
+    <code style="font-size:12px;background:#0b1120;padding:4px 8px;border-radius:4px;display:inline-block;margin:6px 0">
+      cd services/decision-atlas &amp;&amp; pip install -e ".[api]" &amp;&amp;
+      uvicorn decision_atlas.api.app:app --port 8002
+    </code><br>
+    Then open <a href="http://localhost:8002" target="_blank">http://localhost:8002</a>
+    ${window.location.protocol==="file:" ? " or keep this file open — it will connect to <b>" + base + "</b>." : "."}
+    &nbsp;<button class="ghost" style="font-size:11px;padding:4px 8px"
+      onclick="promptApiBase()">Change API URL</button>`;
+  document.getElementById("banner").style.display = "block";
+  setStats("server unreachable");
+}
+
+function hideBanner() { document.getElementById("banner").style.display = "none"; }
+
+function promptApiBase() {
+  const v = prompt("API base URL (e.g. http://localhost:8002):", API_BASE);
+  if (v) { localStorage.setItem("atlas_api_base", v.replace(/\/$/, "")); location.reload(); }
 }
 
 async function loadLadder() {
@@ -185,9 +227,9 @@ function renderDetail(d) {
     <div class="bar"><span style="width:${(rec.readiness_score*100).toFixed(0)}%"></span></div>
     <div class="meta" style="font-size:11px;color:var(--muted)">readiness ${(rec.readiness_score??0).toFixed(2)} · limiting factor: ${rec.limiting_factor||"-"}</div>
 
-    <label>Owner</label><input id="f-owner" value="${d.owner||''}">
-    <label>Owner role</label><input id="f-role" value="${d.owner_role||''}">
-    <label>What "correct" looks like (criteria)</label>
+    <label>Owner</label><input id="f-owner" value="${d.owner||""}">
+    <label>Owner role</label><input id="f-role" value="${d.owner_role||""}">
+    <label>What \"correct\" looks like (criteria)</label>
     <textarea id="f-criteria" rows="3" placeholder="Define the success criteria…">${d.criteria||''}</textarea>
     <label>Notes</label><textarea id="f-notes" rows="2">${d.annotation?.notes||''}</textarea>
 
@@ -236,7 +278,7 @@ async function approve(id) {
 }
 
 async function exportGraph(fmt) {
-  const url = `/api/domains/${encodeURIComponent(state.domain)}/graph?format=${fmt}`;
+  const url = API_BASE + `/api/domains/${encodeURIComponent(state.domain)}/graph?format=${fmt}`;
   if (fmt === 'json') { window.open(url, '_blank'); return; }
   const res = await fetch(url); const text = await res.text();
   const blob = new Blob([text], {type:'text/plain'});
