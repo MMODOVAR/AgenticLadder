@@ -24,31 +24,33 @@ to an agent?* AgenticLadder fills that gap, then guides each decision up an
 | Service | Status | What it does |
 | --- | --- | --- |
 | [**Decision Atlas**](services/decision-atlas/) | ✅ v0.1 | Crawls workflow systems, ticketing, approval chains, and audit logs to auto-build a live map of every enterprise decision — owner, inputs, success criteria, and a recommended target autonomy rung. **The map you point your agents at.** |
-
-> More services will help you *climb* the ladder Decision Atlas maps — guardrail
-> design, agent scaffolding, and rung-by-rung promotion.
+| [**RungGuard**](services/rungguard/) | ✅ v0.1 | Error Tolerance & Governance control plane. Treats the autonomy rung as a governable object: promotion/demotion approval chains, automatic credential rotation on rung change, blast-radius containment policies enforced at action time, and a rung-tagged audit log. **What the agent was authorized to do at that moment — and enforced automatically.** |
 
 ## Quick start
 
+**Decision Atlas** — build the decision map:
 ```bash
 cd services/decision-atlas
-
-# Run discovery on bundled multi-source sample data (no dependencies needed)
-python -m decision_atlas discover
-
-# Launch the dashboard + API
 pip install -r requirements.txt
 python -m decision_atlas serve     # → http://127.0.0.1:8000
 ```
 
-See the [Decision Atlas README](services/decision-atlas/README.md) for full docs.
+**RungGuard** — govern the rung lifecycle:
+```bash
+cd services/rungguard
+pip install -e ".[server]"
+python -m rungguard serve          # → http://127.0.0.1:8001
+```
+
+See the individual READMEs for full docs.
 
 ## Repository layout
 
 ```
 AgenticLadder/
 └─ services/
-   └─ decision-atlas/     First service: the discovery engine
+   ├─ decision-atlas/     Service 1: decision discovery & rung recommendation
+   └─ rungguard/          Service 2: rung lifecycle governance & policy enforcement
 ```
 
 Each service is self-contained and independently deployable.
