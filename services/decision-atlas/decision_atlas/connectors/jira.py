@@ -30,7 +30,7 @@ REOPEN_STATUSES = {"reopened", "in progress", "to do", "open", "backlog"}
 
 @register_connector("jira")
 class JiraConnector(Connector):
-    def __init__(self, path: str, records: list[dict[str, Any]] | None = None,
+    def __init__(self, path: str = "", records: list[dict[str, Any]] | None = None,
                  decision_statuses: list[str] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.path = path
@@ -42,6 +42,8 @@ class JiraConnector(Connector):
     def _load(self) -> list[dict[str, Any]]:
         if self._records is not None:
             return self._records
+        if not self.path:
+            raise ValueError(f"Connector '{self.name}': provide 'path' or inline 'records'.")
         return load_records(self.path)
 
     def fetch_events(self) -> list[DecisionEvent]:

@@ -18,7 +18,7 @@ REGULATED_HINT = {"sox", "gdpr", "hipaa", "pci", "compliance", "audit", "legal"}
 
 @register_connector("approval")
 class ApprovalConnector(Connector):
-    def __init__(self, path: str, records: list[dict[str, Any]] | None = None,
+    def __init__(self, path: str = "", records: list[dict[str, Any]] | None = None,
                  **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.path = path
@@ -27,6 +27,8 @@ class ApprovalConnector(Connector):
     def _load(self) -> list[dict[str, Any]]:
         if self._records is not None:
             return self._records
+        if not self.path:
+            raise ValueError(f"Connector '{self.name}': provide 'path' or inline 'records'.")
         return load_records(self.path)
 
     def fetch_events(self) -> list[DecisionEvent]:

@@ -52,16 +52,18 @@ DEFAULT_MAPPING = {
 
 @register_connector("audit_log")
 class AuditLogConnector(Connector):
-    def __init__(self, path: str, mapping: dict[str, str] | None = None,
+    def __init__(self, path: str = "", mapping: dict[str, str] | None = None,
                  records: list[dict[str, Any]] | None = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.path = path
         self.mapping = {**DEFAULT_MAPPING, **(mapping or {})}
-        self._records = records  # allow in-memory injection (tests)
+        self._records = records  # allow in-memory injection (tests / API)
 
     def _load(self) -> list[dict[str, Any]]:
         if self._records is not None:
             return self._records
+        if not self.path:
+            raise ValueError(f"Connector '{self.name}': provide 'path' or inline 'records'.")
         return load_records(self.path)
 
     def fetch_events(self) -> list[DecisionEvent]:
